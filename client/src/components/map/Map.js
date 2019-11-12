@@ -9,14 +9,15 @@ import {
 
 import Button from "react-bootstrap/Button";
 import MarkerCluster from "./MarkerCluster";
-// import HeatMap from "./HeatMap.js"
-import CurrentLocation from "./CurrentLocation";
+
 import cat_park_icon from "../../../public/cat_park_icon.png";
-import kitty_icon from "../../../public/kitty_icon.png";
+
 import "./infoWindow.css";
 import "./Map_Buttons.css";
 import axios from "axios";
 import "./Map.css";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 require("dotenv").config();
 
 const gradient = [
@@ -53,12 +54,12 @@ export class MapContainer extends React.Component {
       isParkingsReady: false,
       currentLocation: { lat: 59.281229, lng: -123.114889 },
       loading: true,
-      rerender: true,
       bgColor0: "#3f51b5",
       bgColor1: "#3f51b5",
       bgColor2: "#3f51b5",
       bgColor3: "#3f51b5",
-      bgColor4: "#3f51b5"
+      bgColor4: "#3f51b5",
+      count: null
     };
   }
 
@@ -97,7 +98,7 @@ export class MapContainer extends React.Component {
       .then(res => {
         const crimes = res.data;
         let crimesdata = [];
-
+        toast.info(`🚚 Loaded all crimes - ${this.state.count} records`);
         crimes.forEach((obj, index) => {
           crimesdata.push(obj.Geom);
         });
@@ -108,8 +109,10 @@ export class MapContainer extends React.Component {
           bgColor1: "#F1C40F",
           bgColor2: "#3f51b5",
           bgColor3: "#3f51b5",
-          bgColor4: "#3f51b5"
+          bgColor4: "#3f51b5",
+          count: crimesdata.length
         });
+        toast.info(`🚚 Loaded all crimes - ${this.state.count} records`);
         crimesdata = [];
       })
       .catch(function(error) {
@@ -134,8 +137,12 @@ export class MapContainer extends React.Component {
           bgColor1: "#3f51b5",
           bgColor2: "#F1C40F",
           bgColor3: "#3f51b5",
-          bgColor4: "#3f51b5"
+          bgColor4: "#3f51b5",
+          count: crimesdata.length
         });
+        toast.info(
+          `Loaded all thefts from vehicles - ${this.state.count} records`
+        );
         crimesdata = [];
       })
       .catch(function(error) {
@@ -160,9 +167,13 @@ export class MapContainer extends React.Component {
           bgColor1: "#3f51b5",
           bgColor2: "#3f51b5",
           bgColor3: "#F1C40F",
-          bgColor4: "#3f51b5"
+          bgColor4: "#3f51b5",
+          count: crimesdata.length
         });
         crimesdata = [];
+        toast.info(
+          `🚚 Loaded all thefts of vehicles - ${this.state.count} records`
+        );
       })
       .catch(function(error) {
         console.log(error);
@@ -186,9 +197,11 @@ export class MapContainer extends React.Component {
           bgColor1: "#3f51b5",
           bgColor2: "#3f51b5",
           bgColor3: "#3f51b5",
-          bgColor4: "#F1C40F"
+          bgColor4: "#F1C40F",
+          count: crimesdata.length
         });
         crimesdata = [];
+        toast.info(`🚚 Loaded mischief - ${this.state.count} records`);
       })
       .catch(function(error) {
         console.log(error);
@@ -196,12 +209,6 @@ export class MapContainer extends React.Component {
   };
 
   handleClick = (mapProps, map, clickEvent) => {
-    console.log("clickyhandleclicky");
-    console.log(mapProps);
-    console.log(map);
-    console.log(clickEvent.latLng.lat(), clickEvent.latLng.lng());
-    console.log(this.props);
-
     axios
       .get(
         `http://localhost:8001/Data/Parking/?lng=${clickEvent.latLng.lng()}&lat=${clickEvent.latLng.lat()}`
@@ -217,15 +224,17 @@ export class MapContainer extends React.Component {
           });
         });
 
-        console.log(parkingsdata.length);
         this.setState({ isParkingsReady: parkingsdata });
         parkingsdata = [];
-        this.setState({ rerender: !this.state.rerender });
-        console.log("current state", this.state.rerender);
       });
   };
 
   handleToggle = () => {
+    if (!this.state.isHeatmapVisible) {
+      toast.success(`
+      🗺️ Rendering ${this.state.count} records as a heat map`);
+    }
+
     this.setState({
       isHeatmapVisible: !this.state.isHeatmapVisible,
       bgColor0: "#F1C40F"
@@ -244,13 +253,18 @@ export class MapContainer extends React.Component {
   }
 
   componentDidMount(props) {
+    function error(err) {
+      console.warn(`Error ${err.code}: ${err.message}`);
+    }
+    let options = {
+      enableHighAccuracy: true
+    };
     navigator.geolocation.getCurrentPosition(
       position => {
         let { latitude, longitude } = position.coords;
         // latitude = -123.114889;
         // longitude = 49.281229;
-        console.log("current loc", latitude, longitude);
-        console.log("accur", position);
+        console.log(position.coords);
         this.setState({
           currentLocation: { lat: latitude, lng: longitude },
           loading: false
@@ -258,11 +272,16 @@ export class MapContainer extends React.Component {
       },
       () => {
         this.setState({ loading: false });
-      }
+      },
+      error,
+      options
     );
   }
 
   componentWillMount() {
+    this.toastId = toast.info(`⌛ Loading all records of crimes`, {
+      autoClose: false
+    });
     axios
       .get(`http://localhost:8001/Data/Crimes/`)
       .then(res => {
@@ -272,47 +291,45 @@ export class MapContainer extends React.Component {
         crimes.forEach((obj, index) => {
           crimesdata.push(obj.Geom);
         });
-        console.log("activated all crimes hm");
         this.setState({
           heatMapData: crimesdata,
           bgColor0: "#3f51b5",
           bgColor1: "#F1C40F",
           bgColor2: "#3f51b5",
           bgColor3: "#3f51b5",
-          bgColor4: "#3f51b5"
+          bgColor4: "#3f51b5",
+          count: crimesdata.length
         });
+        toast.update(this.toastId, {
+          render: `⭐ Loaded all crimes - ${this.state.count} records`,
+          type: toast.TYPE.SUCCESS,
+          autoClose: 5000
+        });
+        // toast(`Loaded all crimes - ${this.state.count} records`);
       })
       .catch(function(error) {
         console.log(error);
       });
 
-    axios.get(`http://localhost:8001/Data/Parking/`).then(res => {
-      const parkings = res.data;
-      let parkingsdata = [];
-      let google = this.props.google;
-      parkings.forEach((obj, index) => {
-        parkingsdata.push(
-          // <Marker
-          //   key={index}
-          //   name={obj["meterhead"]}
-          //   position={obj["Geom"]}
-          //   onClick={this.onMarkerClick}
-          //   icon={{
-          //     url: kitty_icon,
-          //     scaledSize: new google.maps.Size(14, 22)
-          //   }}
-          //   animation={this.props.google.maps.Animation.DROP}
-          // />
-
-          {
-            position: obj["Geom"],
-            name: obj["meterhead"]
-          }
-        );
-      });
-
-      this.setState({ isParkingsReady: parkingsdata });
-    });
+    // call to get all markeres now replaced by onclick call
+    // axios
+    //   .get(`http://localhost:8001/Data/Parking/`)
+    //   .then(res => {
+    //     const parkings = res.data;
+    //     let parkingsdata = [];
+    //     parkings.forEach((obj, index) => {
+    //       parkingsdata.push(
+    //         {
+    //           position: obj["Geom"],
+    //           name: obj["meterhead"]
+    //         }
+    //       );
+    //     });
+    //     this.setState({ isParkingsReady: parkingsdata });
+    //   })
+    //   .catch(function(error) {
+    //     console.log(error);
+    //   });
   }
 
   render() {
@@ -380,17 +397,16 @@ export class MapContainer extends React.Component {
           crimesdata={this.state.heatMapData}
           onClick={this.handleClick}
           initialCenter={{
-            lat: 49.2812874,
-            lng: -123.114984
+            lat: this.state.currentLocation.lat,
+            lng: this.state.currentLocation.lng
           }}
           zoom={15}
         >
           <MarkerCluster
             markers={parkingMarkers}
             google={google}
-            rerender={this.state.rerender}
             map={map}
-            // click={this.onMarkerClick}
+            click={this.onMarkerClick}
             // mouseover={this.onMouseOver}
             // mouseout={this.onMouseOut}
           />
@@ -402,6 +418,10 @@ export class MapContainer extends React.Component {
               url: cat_park_icon
             }}
             animation={this.props.google.maps.Animation.BOUNCE}
+            position={{
+              lat: this.state.currentLocation.lat,
+              lng: this.state.currentLocation.lng
+            }}
           />
           {/* <Marker
             name={"Test Marker"}
@@ -432,6 +452,7 @@ export class MapContainer extends React.Component {
           {this.state.isHeatmapVisible ? map : null}
           {/* {this.state.isParkingsReady ? parkingMarkers : null} */}
         </Map>
+        <ToastContainer />
       </div>
     );
   }
